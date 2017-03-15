@@ -1,0 +1,178 @@
+.marked.hidden {
+  color: #4e4e4e !important;
+  opacity: 0.5;
+}
+
+.locked {
+  opacity: 0.5;
+  pointer-events: all;
+  position: relative;
+}
+
+.locked:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -10px;
+  width: 10px;
+  height: 10px;
+  background-image: url('https://cdn1.iconfinder.com/data/icons/hawcons/32/698630-icon-114-lock-128.png');
+  background-size: contain;
+}
+.marked::selection {
+  color: red;
+}
+
+.marker-delete {
+  background: rgb(245, 50, 50) !important;
+}
+
+.marker-delete::after {
+  width: 100%;
+  position: absolute;
+  height: 100%;
+  content: '';
+  background-image: url('http://www.iconsdb.com/icons/preview/white/full-trash-xxl.png') !important;
+  background-size: contain;
+  filter: saturate(100%) grayscale(100%) invert(100%);
+  top: 0;
+  left: 0;
+}
+
+.marker-lock {
+  background-color: rgb(235, 235, 65) !important;
+}
+
+.marker-lock::after {
+  width: 100%;
+  position: absolute;
+  height: 100%;
+  content: '';
+  background-image: url('https://cdn1.iconfinder.com/data/icons/hawcons/32/698630-icon-114-lock-128.png') !important;
+  background-size: contain;
+  filter: saturate(100%) grayscale(100%) invert(100%);
+  top: 0;
+  left: 0;
+}
+
+.marker-hide {
+  background: rgb(73, 73, 240) !important;
+}
+
+.marker-hide::after {
+  width: 100%;
+  position: absolute;
+  height: 100%;
+  content: '';
+  background-image: url('https://s-media-cache-ak0.pinimg.com/originals/75/89/21/758921b32634f1a2b04d501ed254659d.jpg') !important;
+  background-size: contain;
+  filter: saturate(100%) grayscale(100%) invert(100%);
+  top: 0;
+  left: 0;
+}
+
+
+.marker-list button {
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  margin: 0 3px;
+  padding: 0;
+  border-radius: 3px;
+  opacity: 0.3; 
+  transform: scale(0.8);
+}
+
+.marker-list button:hover {
+  margin: 0 3px;
+  transform: none;
+}
+
+.marker-list .active {
+  transform: scale(1);
+  opacity: 1;
+}
+
+
+#snippet-creator-panel .marker-list {
+  font-family: monospace;
+  color: #ffffff;
+  padding-left: 0;
+  margin: 0;
+}
+
+.marker-list li {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  justify-content: space-between;
+  padding: 10px;
+  height: 30px;
+  max-width: 100%;
+  margin: 0;
+  position: relative;
+}
+
+.marker-list li .wrapper {
+  margin-left: auto;
+  align-items: center;
+  height: 100%;
+  display: flex;
+  background: rgb(56, 56, 56);
+  border-radius: 3px;
+  margin-left: 20px;
+}
+
+.marker-list li:nth-child(even) {
+  background: rgb(51, 51, 51);
+}
+
+.marker-list li:hover {
+  cursor: pointer;
+}
+
+.marker-list .code {
+  padding: 3px;
+  max-width: 70%;
+  height: 30px;
+  font-size: 10px;
+  line-height: 10px;
+  word-wrap: break-word;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  margin-left: auto;
+}
+
+.marker-list li:hover {
+  background: rgb(67, 67, 67);
+}
+
+.marker-list li::after {
+  content: attr(data-file-name);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: 10px;
+  font-size: 10px;
+  background: rgb(56, 56, 56);
+  color: #ffffff;
+  line-height: 8px;
+  padding: 2px; 
+  z-index: 1;
+}
+
+#snippet-creator-bar {
+  min-height: 30px;
+}
+
+#in-out {
+  margin-left: auto;
+}
+
+#create-marker.hidden {
+  visibility: hidden;
+}
