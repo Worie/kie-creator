@@ -259,19 +259,34 @@ define(function (require, exports, module) {
     return allFilesPromise
       .then(function (fileArray) {
         
-        // Then you need to get contents of those files => Promise
-        var textContents = Promise.all(fileArray.map(function (file) {
-          var filePath = getRelativeFileName(file.fullPath);
-          filePaths.push(filePath);
-          return FileUtils.readAsText(file)
-        }));
-        
-        // You also need a document obj for that file, because we need every code mirror instance => Promise
-        // We will then get a _codeMirror of those.
-        var codeMirrorInstances = Promise.all(fileArray.map(function (file) {
-          return DocumentManager.getDocumentForPath(file.fullPath);
-        }));
-      
+        var textContents = fileArray.reduce(function (prev, file, idx) {
+          return prev.then(function (arr) {
+            return new Promise(function (resolve, reject) {
+              var filePath = getRelativeFileName(file.fullPath);
+              FileUtils.readAsText(file).then(function (val) {
+                filePaths.push(filePath);
+                arr.push(val);
+                resolve(arr);
+              }).fail(function () {
+                resolve(arr);
+              });
+            });
+          });
+        }, Promise.resolve([]));
+
+        var bracketsDocuments = fileArray.reduce(function (prev, file) {
+          return prev.then(function (arr) {
+            return new Promise(function (resolve, reject) {
+              DocumentManager.getDocumentForPath(file.fullPath).then(function (val) {
+                arr.push(val);
+                resolve(arr);
+              }).fail(function () {
+                resolve(arr);
+              });
+            });
+          });
+        }, Promise.resolve([]));
+
         // Pass both promises further.
         return {
           textContents,
@@ -287,15 +302,13 @@ define(function (require, exports, module) {
           fileContents.forEach(function (text) {
             files[filePaths[i++]] = { contents : text };
           });
-
           return files;
         });
-        
         // Get the second promise and handle it.
-        var codeMirrorInstances = promises.bracketsDocuments.then(function (document) {
+        var codeMirrorInstances = promises.bracketsDocuments.then(function (docs) {
           var files = {};
           // 
-          document.forEach(function (doc) {
+          docs.forEach(function (doc) {
             if (doc._associatedFullEditors.length) {
               var filePath = getRelativeFileName(doc.file.fullPath);
               // Create more-or less same structure as in textContents promise, but add a codeMirror property to each obj.
