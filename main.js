@@ -247,6 +247,43 @@ define(function (require, exports, module) {
       newFile.write(value);
     });
   };
+
+  function updateFile (filename, content) {
+    var filePath = ProjectManager.getInitialProjectPath() + filename;
+    DocumentManager
+              .getDocumentForPath(filePath)
+              .then(function (doc) {
+                FileUtils.writeText(doc.file, content);
+              });
+  }
+
+  function importSnapshot () {
+    var $template = $(
+      Mustache.render(require("text!html/import_dialog.html"), 
+      {
+        "Strings":Strings
+      })
+    );
+
+    var d = Dialogs.showModalDialogUsingTemplate($template, true);
+    var dialog = d.getElement();
+    d.done(function(buttonId){
+      if(buttonId === 'done') {
+        var snippetId = dialog.find("#snippetId").val();
+        DocumentManager
+              .getDocumentForPath(ProjectManager.getInitialProjectPath() + '__snippet-project'+(snippetId) + ".json")
+              .then(function (doc) {
+                var json = JSON.parse(doc.getText());
+                for (var file in json) {
+                  updateFile(file, json[file].contents);
+                }
+              }).fail(function (err) {
+                console.log(err);
+              });
+        
+      }
+    });
+  }
   
   function exportProject () {
     var filePaths = [];
@@ -274,18 +311,18 @@ define(function (require, exports, module) {
           });
         }, Promise.resolve([]));
 
-        var bracketsDocuments = fileArray.reduce(function (prev, file) {
-          return prev.then(function (arr) {
-            return new Promise(function (resolve, reject) {
-              DocumentManager.getDocumentForPath(file.fullPath).then(function (val) {
-                arr.push(val);
-                resolve(arr);
-              }).fail(function () {
-                resolve(arr);
+        var bracketsDocuments = Promise
+          .all(fileArray.map(({fullPath}) => new Promise(resolve => {
+            DocumentManager
+              .getDocumentForPath(fullPath)
+              .then(document => {
+                resolve(document);
+              })
+              .fail(() => {
+                resolve(null);
               });
-            });
-          });
-        }, Promise.resolve([]));
+          })))
+          .then(documents => documents.filter(document => !!document));
 
         // Pass both promises further.
         return {
@@ -401,9 +438,11 @@ define(function (require, exports, module) {
     
     
     var $createBtn = $bottomPanel.find('#create-marker'),
-        $exportBtn = $bottomPanel.find('#export');
+        $exportBtn = $bottomPanel.find('#export'),
+        $importBtn = $bottomPanel.find('#import');
     
     $exportBtn.on('click', exportProject);
+    $importBtn.on('click', importSnapshot);
     $createBtn.on('click', markSelection);
     $createBtn.hide();
     
