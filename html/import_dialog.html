@@ -10,12 +10,13 @@
           <label class="control-label">Snippet ID</label>
           <div class="controls">
             <select id="snippetSelect">
+              <option disabled="disabled" value="*pickasnippet*">Pick a snippet</option>
             </select>
           </div>
         </div>  
       </div>
     <div class="modal-footer">
         <button class="dialog-button btn" data-button-id="cancel">{{Strings.CANCEL}}</button>
-        <button class="dialog-button btn primary" data-button-id="done">{{Strings.DONE}}</button>
+        <button class="dialog-button btn primary" id="importBTN" data-button-id="done" disabled="disabled">{{Strings.DONE}}</button>
     </div>
 </div>

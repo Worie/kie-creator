@@ -308,11 +308,18 @@ define(function (require, exports, module) {
       var a = fileArray.filter(function (file) {
         return /__snippet-/.test(getRelativeFileName(file.fullPath));
       });
-      
+      var select = $template.find('#snippetSelect');
       a.forEach(function (el) {
         $template.find('#snippetSelect').append(`<option value="${getRelativeFileName(el.fullPath)}"> ${getRelativeFileName(el.fullPath).replace(/__snippet-/,"").replace(/.json/,"")}</option>`); 
       });
-      $template.find('#snippetSelect').focus();
+      
+      select.on('change', function () {
+        if (select.val() == "*pickasnippet*") {
+          $template.find('#importBTN').attr('disabled','disabled');
+        } else {
+          $template.find('#importBTN').attr('disabled',false);
+        }
+      })
     });
 
 
