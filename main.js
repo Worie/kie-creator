@@ -55,7 +55,8 @@ define(function (require, exports, module) {
   var $bottomPanel,
       selectionBookmark,
       snippetVersion = 0,
-      lastSnippetName = "";
+      lastSnippetName = "",
+      allMarkers = new Set();
   
   var getRelativeFileName = function (path) {
     var projectPath = ProjectManager.getProjectRoot().fullPath;
@@ -156,7 +157,7 @@ define(function (require, exports, module) {
         $lockBtn[0].classList.remove('active');
       }
       obj.hidden = !obj.hidden;
-      obj.collapsed = obj.hidden;
+      obj.collapse = obj.hidden;
       
       var newmarker = cm.markText(range.from, range.to, obj);
       marker.clear();
@@ -185,6 +186,17 @@ define(function (require, exports, module) {
     
     if(obj.hidden)
       $hideBtn.addClass('active');
+    
+    if(obj.collapsed) {
+      // so that it is not hidden inside brackets, but will be in exercises
+      obj.collapse = true;
+      obj.collapsed = false;
+      var newmarker = cm.markText(range.from, range.to, obj);
+      allMarkers.delete(marker);
+      marker.clear();
+      marker = newmarker;
+    }
+    
     
     $btnWrapper
       .append($delBtn)
@@ -254,7 +266,8 @@ define(function (require, exports, module) {
         readOnly: marker.readOnly,
         inclusiveLeft: marker.inclusiveLeft,
         inclusiveRight: marker.inclusiveRight,
-        hidden: marker.hidden
+        hidden: marker.hidden,
+        collapsed: marker.collapse
       };
     
     return obj;
@@ -290,12 +303,25 @@ define(function (require, exports, module) {
         "Strings":Strings
       })
     );
+    
+    ProjectManager.getAllFiles().then(function (fileArray) {
+      var a = fileArray.filter(function (file) {
+        return /__snippet-/.test(getRelativeFileName(file.fullPath));
+      });
+      
+      a.forEach(function (el) {
+        $template.find('#snippetSelect').append(`<option value="${getRelativeFileName(el.fullPath)}"> ${getRelativeFileName(el.fullPath).replace(/__snippet-/,"").replace(/.json/,"")}</option>`); 
+      });
+      $template.find('#snippetSelect').focus();
+    });
+
 
     var d = Dialogs.showModalDialogUsingTemplate($template, true);
     var dialog = d.getElement();
     d.done(function(buttonId){
       if(buttonId === 'done') {
-        var snippetId = dialog.find("#snippetId").val(),
+            clearMarkers();
+        var snippetId = dialog.find("#snippetSelect").val(),
             projectPath = ProjectManager.getInitialProjectPath();
         
         DocumentManager
@@ -323,7 +349,7 @@ define(function (require, exports, module) {
                          
                           file.markers.forEach(function (marker) {
                             var loadedMarker = cm.markText(marker.from, marker.to, marker.options);
-                            console.log(marker.options);
+                            allMarkers.add(loadedMarker);
                             
                             createLiElement(
                               loadedMarker,
@@ -645,6 +671,11 @@ define(function (require, exports, module) {
   var clearMarkers = function () {
     $bottomPanel
       .find('.marker-list').html('');
+    
+    allMarkers.forEach(function (marker) {
+      marker.clear();                   
+    });
+    allMarkers.clear();
   };
   
   var loadMarker = function () {
@@ -659,9 +690,9 @@ define(function (require, exports, module) {
 });
 
 // TODO:
-// Import capability
 // Clear/Restore markers on projectChange
 // Remove event listeners on projectChange
 
 
-// You need to queue the markers creation.
+// Create files that are no longer in project but were in snippets
+// remove files that are no longer in project (!! careful about snippets for ex)
