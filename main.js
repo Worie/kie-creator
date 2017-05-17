@@ -534,7 +534,15 @@ define(function (require, exports, module) {
                 markerList.clear();
             } else {
               finalObj[index]['markers'] = [];
-              
+              var cmMode = "";
+              if (/.html$/.test(index)) {
+                cmMode = "htmlmixed";
+              } else if (/.css/.test(index)) {
+                cmMode = "css";
+              } else if ((/.js/.test(index))) {
+                cmMode = "javascript";
+              }
+              finalObj[index]['cmMode'] = cmMode;
               //detect the cmMode manually by checking the file extension - todo
             }
             
