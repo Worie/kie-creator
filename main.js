@@ -23,7 +23,7 @@
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4,
 maxerr: 50, browser: true */
-/*global $, define, brackets, alert, Promise, Set */
+/*global $, define, brackets, alert, Promise, Set, window */
 
 
 define(function (require, exports, module) {
@@ -54,7 +54,8 @@ define(function (require, exports, module) {
   
   var $bottomPanel,
       selectionBookmark,
-      snippetVersion = 0;
+      snippetVersion = 0,
+      lastSnippetName = "";
   
   var getRelativeFileName = function (path) {
     var projectPath = ProjectManager.getProjectRoot().fullPath;
@@ -63,15 +64,10 @@ define(function (require, exports, module) {
       path
     );
   };
-  
-  function createLiElement (marker, obj) {
-    // Get codeMirror instance to which maker is hooked in
-    var cm = marker.doc.cm,
-        fullPath = EditorManager
-                    .getCurrentFullEditor()
-                    .getFile()
-                    .fullPath;
-    
+//  window.getDocument = DocumentManager.getDocumentForPath;
+//  window.setview = FileViewController.openFileAndAddToWorkingSet;
+  function createLiElement (marker, obj, fullPath, cm) {
+
     // List entry markup.
     var $li = $("<li></li>"),
         $btnWrapper = $(`<div class="wrapper"></div>`),
@@ -82,9 +78,10 @@ define(function (require, exports, module) {
         $rightBtn = $('<button class="inclusive">R</button>'),
         $code = $('<div class="code"></div>');
     
+    var range = marker.find() || obj;
+    
     function selectMarker () {
-      var obj = marker.find();
-      cm.setSelection(obj.from, obj.to);
+      cm.setSelection(range.from, range.to);
     };
     
     function removeBtnsListeners() {
@@ -108,6 +105,10 @@ define(function (require, exports, module) {
     };
     
     function onLockBtnClick () {
+      if (obj.hidden) {
+        // if it is hidden, you cannot deselect the lock state
+        return;
+      }
       selectMarker();
       if(obj.readOnly) {
         obj.className = obj.className.replace("locked", "");
@@ -118,7 +119,7 @@ define(function (require, exports, module) {
       }
       obj.readOnly = !obj.readOnly;
 
-      var newmarker = cm.markText(marker.find().from, marker.find().to, obj);
+      var newmarker = cm.markText(range.from, range.to, obj);
       marker.clear();
       marker = newmarker;
     };
@@ -126,7 +127,7 @@ define(function (require, exports, module) {
     function onLeftBtnClick () {
       selectMarker();
       obj.inclusiveLeft = !obj.inclusiveLeft;
-      var newmarker = cm.markText(marker.find().from, marker.find().to, obj);
+      var newmarker = cm.markText(range.from, range.to, obj);
       marker.clear();
       marker = newmarker;
       this.classList.toggle('active');
@@ -135,7 +136,7 @@ define(function (require, exports, module) {
     function onRightBtnClick () {
       selectMarker();
       obj.inclusiveRight = !obj.inclusiveRight;
-      var newmarker = cm.markText(marker.find().from, marker.find().to, obj);
+      var newmarker = cm.markText(range.from, range.to, obj);
       marker.clear();
       marker = newmarker;
       this.classList.toggle('active');
@@ -145,16 +146,25 @@ define(function (require, exports, module) {
       selectMarker();
       if (!obj.hidden) {
         obj.className += ' hidden';  
+        obj.readOnly = true;
+        $lockBtn[0].classList.add('active');
       } else {
         obj.className = obj.className.replace("hidden", "");
+        
+        obj.className = obj.className.replace("locked", "");
+        obj.readOnly = false;
+        $lockBtn[0].classList.remove('active');
       }
       obj.hidden = !obj.hidden;
+      obj.collapsed = obj.hidden;
       
-      var newmarker = cm.markText(marker.find().from, marker.find().to, obj);
+      var newmarker = cm.markText(range.from, range.to, obj);
       marker.clear();
       marker = newmarker;
       this.classList.toggle('active');
     };
+    
+    selectMarker();
     
     $delBtn.on("click", onDelBtnClick);
     $lockBtn.on("click", onLockBtnClick);
@@ -164,6 +174,17 @@ define(function (require, exports, module) {
     
     $code.text(cm.getSelection());
     
+    if(obj.readOnly) 
+      $lockBtn.addClass('active');
+    
+    if(obj.inclusiveLeft)
+      $leftBtn.addClass('active');
+    
+    if(obj.inclusiveRight)
+      $rightBtn.addClass('active');
+    
+    if(obj.hidden)
+      $hideBtn.addClass('active');
     
     $btnWrapper
       .append($delBtn)
@@ -187,7 +208,11 @@ define(function (require, exports, module) {
   };
   
   function markSelection(obj) {
-    var startIndex,
+    var fullPath = EditorManager
+                    .getCurrentFullEditor()
+                    .getFile()
+                    .fullPath,
+        startIndex,
         endIndex,
         currentEditor = EditorManager.getCurrentFullEditor(),
         cm = currentEditor._codeMirror,
@@ -212,7 +237,9 @@ define(function (require, exports, module) {
     
     createLiElement(
       cm.markText(from, to, obj),
-      obj
+      obj,
+      fullPath,
+      cm
     );
   };
   
@@ -220,17 +247,16 @@ define(function (require, exports, module) {
     var obj = {},
         range = marker.find();
     
-    obj.range = {
-      from: range.from,
-      to: range.to
-    };
+      obj.from = range.from;
+      obj.to = range.to;
+      obj.options = {
+        className: marker.className.replace("[object Object]", ""),
+        readOnly: marker.readOnly,
+        inclusiveLeft: marker.inclusiveLeft,
+        inclusiveRight: marker.inclusiveRight,
+        hidden: marker.hidden
+      };
     
-      obj.className = marker.className.replace("[object Object]", "");
-      obj.readOnly = marker.readOnly;
-      obj.inclusiveLeft = marker.inclusiveLeft;
-      obj.inclusiveRight = marker.inclusiveRight;
-      obj.hidden = marker.hidden;
-
     return obj;
   };
   
@@ -269,30 +295,106 @@ define(function (require, exports, module) {
     var dialog = d.getElement();
     d.done(function(buttonId){
       if(buttonId === 'done') {
-        var snippetId = dialog.find("#snippetId").val();
+        var snippetId = dialog.find("#snippetId").val(),
+            projectPath = ProjectManager.getInitialProjectPath();
+        
         DocumentManager
-              .getDocumentForPath(ProjectManager.getInitialProjectPath() + '__snippet-project'+(snippetId) + ".json")
+              .getDocumentForPath(projectPath + snippetId)
               .then(function (doc) {
                 var json = JSON.parse(doc.getText());
-                for (var file in json) {
-                  updateFile(file, json[file].contents);
-                }
-              }).fail(function (err) {
-                console.log(err);
+                var snippetName = Object.keys(json)[0];
+                // ugh. dont know the name of the snippet, but theres only one key at this level 
+
+                json[snippetName]['files'].forEach(function (file) {
+                  // create file if does not exits
+                  // probably remove all others?
+                  // then
+                  
+                  updateFile(file.fileName, file.contents);
+                  
+                  
+                  FileViewController
+                    .openFileAndAddToWorkingSet(projectPath + file.fileName)
+                    .then(function () {
+                       DocumentManager
+                        .getDocumentForPath(projectPath + file.fileName)
+                        .then(function (doc) {
+                          var cm = doc._masterEditor._codeMirror;
+                         
+                          file.markers.forEach(function (marker) {
+                            var loadedMarker = cm.markText(marker.from, marker.to, marker.options);
+                            console.log(marker.options);
+                            
+                            createLiElement(
+                              loadedMarker,
+                              marker.options,
+                              projectPath + file.fileName,
+                              cm
+                            );
+                          });
+                        });
+                    });
+                });
               });
+//              }).fail(function (err) {
+//                console.log(err);
+//              });
         
-      }
-    });
-  }
+
+    }
+  });
+  };
   
-  function exportProject () {
+  /*
+  
+   if (typeof json[file].markers !== 'undefined') {
+                    FileViewController
+                      .openFileAndAddToWorkingSet(projectPath + file)
+                      .then(function () {
+                        DocumentManager
+                      .getDocumentForPath(projectPath + file)
+                      .then(function (doc) {
+                        // so it'll be kept alive
+                        doc.addRef();
+//                          cm = doc._associatedFullEditors[0]._codeMirror;
+                          console.log(doc);
+                          setTimeout(function() {
+                            console.log(doc);
+                          },1000);
+                          var cm = doc._associatedFullEditors[0]._codeMirror;
+                        
+                        if (typeof json[file].markers !== 'undefined') {
+                          console.log(file, json[file].markers);
+                          json[file].markers.forEach(function (marker) {
+
+                            createLiElement(
+                              cm.markText(
+                                marker.from,
+                                marker.to,
+                                marker
+                              ),
+                              marker,
+                              projectPath + file,
+                              cm
+                            );
+                            doc.releaseRef();
+                          });
+                        }
+                    });
+                      
+                    });
+                  }
+                  */
+  
+  function exportProject (snippetName) {
+    
     var filePaths = [];
     
     // This is probably the most weird part of this extension.
     
     // You need a promise which will give you all files inside a project
     var allFilesPromise = ProjectManager.getAllFiles();
-
+    
     return allFilesPromise
       .then(function (fileArray) {
         
@@ -360,7 +462,7 @@ define(function (require, exports, module) {
       })
       .then(function (promises) {
         promises.then(function (arr) {
-          var finalObj = {},
+          var finalObj = [],
               textContents = arr[0],
               codeMirrors = arr[1],
               markerList = new Set();
@@ -396,13 +498,22 @@ define(function (require, exports, module) {
                 
                 // Create an array from the set and parse each marker (with initial options stored in them, by now)
                 // to raw object, so we don't have any junkies inside the final json file.
-                finalObj[index]['markers']  = Array.from(markerList).map(function (marker) {
+                finalObj[index]['markers'] = Array.from(markerList).map(function (marker) {
                   return parseMarkerToObj(marker);
                 });
-              
+                
+                finalObj[index]['cmMode'] = codeMirrors[index].codeMirror.getMode().name;
+  
                 // Clear the set so it can be used when iterating over different file
                 markerList.clear();
+            } else {
+              finalObj[index]['markers'] = [];
+              
+              //detect the cmMode manually by checking the file extension - todo
             }
+            
+            
+            
           });
           
           // Lets get rid of files which contain __ (wherever in their path, that means that directories with __ will also be ignored)
@@ -414,10 +525,21 @@ define(function (require, exports, module) {
               delete finalObj[file];
             });
           
+          
+          // meh... finalObj and objTosave? improve later
+          var objToSave = {};
+          objToSave[snippetName] = { files: [] };
+          
+          Object.keys(finalObj).forEach(function (cmFile) {
+            var singleFileObj = {fileName: cmFile};
+            Object.assign(singleFileObj, finalObj[cmFile]);
+            objToSave[snippetName].files.push(singleFileObj);
+          });
+          
           // Create a new file with a version name in it and the final object containing whole project with marks.
           createNewFile(
-            '__snippet-project'+(snippetVersion++) + ".json",
-            JSON.stringify(finalObj)
+            '__snippet-' + snippetName + '.json',
+            JSON.stringify(objToSave)
           );
         });
       });
@@ -439,11 +561,51 @@ define(function (require, exports, module) {
     
     var $createBtn = $bottomPanel.find('#create-marker'),
         $exportBtn = $bottomPanel.find('#export'),
-        $importBtn = $bottomPanel.find('#import');
+        $importBtn = $bottomPanel.find('#import'),
+        $closeBtn = $bottomPanel.find('.close');
     
-    $exportBtn.on('click', exportProject);
+    var toolbarButton = require('text!html/toolbar_button.html');
+    $('#main-toolbar .buttons').append(toolbarButton);
+    $('#snippet-creator-btn').on('click', function() {
+      showBottomPanel();
+    });
+
+    var showBottomPanel = function () {
+      Resizer.show($bottomPanel);
+    };
+    
+    var onExportClicked = function () {
+      
+      if (lastSnippetName == "") {
+        lastSnippetName = "snippet-project-" + snippetVersion;
+      }
+      
+      var $template = $(
+      Mustache.render(require("text!html/export_dialog.html"), 
+        {
+          "Strings":Strings,
+          "SnippetName": lastSnippetName
+        })
+      );
+      var d = Dialogs.showModalDialogUsingTemplate($template, true);
+      var dialog = d.getElement();
+      
+      d.done(function(buttonId){
+        if(buttonId === 'done') {
+          lastSnippetName = dialog.find("#snippetId").val();
+          exportProject(lastSnippetName);
+        }
+      });
+    };
+    
+    var closeBottomPanel = function () {
+      Resizer.hide($bottomPanel);
+    };
+    
+    $exportBtn.on('click', onExportClicked);
     $importBtn.on('click', importSnapshot);
     $createBtn.on('click', markSelection);
+    $closeBtn.on('click', closeBottomPanel);
     $createBtn.hide();
     
     // When brackets is launching there are no activeEditors.
@@ -478,7 +640,21 @@ define(function (require, exports, module) {
 
     $createBtn.hide();
   };
+  
+  
+  var clearMarkers = function () {
+    $bottomPanel
+      .find('.marker-list').html('');
+  };
+  
+  var loadMarker = function () {
+  };
 
+  ProjectManager.on("projectClose", clearMarkers);
+  //ProjectManager.on("beforeProjectClose", handler)
+  //ProjectManager.on("beforeProjectClose", handler)
+  //ProjectManager.on("projectOpen", handler)
+  
   init();
 });
 
@@ -486,3 +662,6 @@ define(function (require, exports, module) {
 // Import capability
 // Clear/Restore markers on projectChange
 // Remove event listeners on projectChange
+
+
+// You need to queue the markers creation.

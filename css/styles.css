@@ -176,3 +176,8 @@
 #create-marker.hidden {
   visibility: hidden;
 }
+
+#snippet-creator-btn {
+  background: url('./../img/icon.svg') no-repeat center center transparent;
+  background-size: 90%;
+}
