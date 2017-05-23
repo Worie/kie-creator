@@ -56,7 +56,8 @@ define(function (require, exports, module) {
       selectionBookmark,
       snippetVersion = 0,
       lastSnippetName = "",
-      allMarkers = new Set();
+      allMarkers = new Set(),
+      loadedFiles = [];
   
   var getRelativeFileName = function (path) {
     var projectPath = ProjectManager.getProjectRoot().fullPath;
@@ -68,7 +69,6 @@ define(function (require, exports, module) {
 //  window.getDocument = DocumentManager.getDocumentForPath;
 //  window.setview = FileViewController.openFileAndAddToWorkingSet;
   function createLiElement (marker, obj, fullPath, cm) {
-
     // List entry markup.
     var $li = $("<li></li>"),
         $btnWrapper = $(`<div class="wrapper"></div>`),
@@ -101,6 +101,7 @@ define(function (require, exports, module) {
 
     function onDelBtnClick () {
       selectMarker();
+      allMarkers.delete(marker);
       marker.clear();
       $li.remove();
     };
@@ -121,16 +122,20 @@ define(function (require, exports, module) {
       obj.readOnly = !obj.readOnly;
 
       var newmarker = cm.markText(range.from, range.to, obj);
+      allMarkers.delete(marker);
       marker.clear();
       marker = newmarker;
+      allMarkers.add(marker);
     };
     
     function onLeftBtnClick () {
       selectMarker();
       obj.inclusiveLeft = !obj.inclusiveLeft;
       var newmarker = cm.markText(range.from, range.to, obj);
+      allMarkers.delete(marker);
       marker.clear();
       marker = newmarker;
+      allMarkers.add(marker);
       this.classList.toggle('active');
     };
     
@@ -138,8 +143,10 @@ define(function (require, exports, module) {
       selectMarker();
       obj.inclusiveRight = !obj.inclusiveRight;
       var newmarker = cm.markText(range.from, range.to, obj);
+      allMarkers.delete(marker);
       marker.clear();
       marker = newmarker;
+      allMarkers.add(marker);
       this.classList.toggle('active');
     };
     
@@ -160,8 +167,10 @@ define(function (require, exports, module) {
       obj.collapse = obj.hidden;
       
       var newmarker = cm.markText(range.from, range.to, obj);
+      allMarkers.delete(marker);
       marker.clear();
       marker = newmarker;
+      allMarkers.add(marker);
       this.classList.toggle('active');
     };
     
@@ -195,6 +204,7 @@ define(function (require, exports, module) {
       allMarkers.delete(marker);
       marker.clear();
       marker = newmarker;
+      allMarkers.add(marker);
     }
     
     
@@ -277,13 +287,19 @@ define(function (require, exports, module) {
   function createNewFile (path, value) {
     var directory = FileSystem.getDirectoryForPath('/');
     
-    ProjectManager.createNewItem(
+    return ProjectManager.createNewItem(
         directory,
         FileUtils.getBaseName(path),
         true,
         false
     ).then(function (newFile) {
-      newFile.write(value);
+      var promise = new Promise(resolve => {
+        newFile.write(value);
+        setTimeout(function () {
+          resolve(true);  
+        }, 500);
+      });
+      return promise;
     });
   };
 
@@ -305,12 +321,13 @@ define(function (require, exports, module) {
     );
     
     ProjectManager.getAllFiles().then(function (fileArray) {
+      loadedFiles = fileArray;
       var a = fileArray.filter(function (file) {
         return /__snippet-/.test(getRelativeFileName(file.fullPath));
       });
       var select = $template.find('#snippetSelect');
       a.forEach(function (el) {
-        $template.find('#snippetSelect').append(`<option value="${getRelativeFileName(el.fullPath)}"> ${getRelativeFileName(el.fullPath).replace(/__snippet-/,"").replace(/.json/,"")}</option>`); 
+        select.append(`<option value="${getRelativeFileName(el.fullPath)}"> ${getRelativeFileName(el.fullPath).replace(/__snippet-/,"").replace(/.json/,"")}</option>`); 
       });
       
       select.on('change', function () {
@@ -343,32 +360,49 @@ define(function (require, exports, module) {
                   // probably remove all others?
                   // then
                   
-                  updateFile(file.fileName, file.contents);
-                  
-                  
-                  FileViewController
-                    .openFileAndAddToWorkingSet(projectPath + file.fileName)
-                    .then(function () {
-                       DocumentManager
-                        .getDocumentForPath(projectPath + file.fileName)
-                        .then(function (doc) {
-                          var cm = doc._masterEditor._codeMirror;
-                         
-                          file.markers.forEach(function (marker) {
-                            var loadedMarker = cm.markText(marker.from, marker.to, marker.options);
-                            allMarkers.add(loadedMarker);
-                            
-                            createLiElement(
-                              loadedMarker,
-                              marker.options,
-                              projectPath + file.fileName,
-                              cm
-                            );
+                  var importMarkers = function (file) { 
+                    var path = projectPath + file.fileName;
+                    FileViewController
+                          .openFileAndAddToWorkingSet(path)
+                          .then(function () {
+                             DocumentManager
+                              .getDocumentForPath(path)
+                              .then(function (doc) {
+                                var cm = doc._masterEditor._codeMirror;
+                               
+                                 file.markers.forEach(function (marker) {
+                                  var loadedMarker = cm.markText(marker.from, marker.to, marker.options);
+                                  allMarkers.add(loadedMarker);
+                                  var foo = Object.assign(marker, marker.options);
+                                  createLiElement(
+                                    loadedMarker,
+                                    foo,
+                                    projectPath + file.fileName,
+                                    cm
+                                  );
+                                });
+                              });
                           });
-                        });
+                  };
+                  
+                  
+                  if (isInProject(file.fileName)) {
+                    updateFile(file.fileName, file.contents);
+                    importMarkers(file);
+                  } else {
+                    createNewFile(
+                      file.fileName,
+                      file.contents
+                    ).then(function () {
+                      importMarkers(file);
                     });
+                  }
+                
+                
                 });
-              });
+            });
+
+                  
 //              }).fail(function (err) {
 //                console.log(err);
 //              });
@@ -578,12 +612,28 @@ define(function (require, exports, module) {
           });
           
           // Create a new file with a version name in it and the final object containing whole project with marks.
-          createNewFile(
-            '__snippet-' + snippetName + '.json',
-            JSON.stringify(objToSave)
-          );
+          // get file for path  '__snippet-' + snippetName + '.json'
+          // if none, do below
+          
+          // check if file is in project
+          var exportedFileName = '__snippet-' + snippetName + '.json';
+          
+          if (!isInProject(exportedFileName)) {
+            createNewFile(
+              exportedFileName,
+              JSON.stringify(objToSave)
+            );            
+          } else {
+            updateFile(exportedFileName, JSON.stringify(objToSave));  
+          }
         });
       });
+  };
+  
+  var isInProject = function (name) {
+    return loadedFiles.some(function (file) {
+      return file.fullPath === ProjectManager.getProjectRoot().fullPath + name;
+    });
   };
   
   function init () {
@@ -630,6 +680,27 @@ define(function (require, exports, module) {
       );
       var d = Dialogs.showModalDialogUsingTemplate($template, true);
       var dialog = d.getElement();
+      
+      var select = $template.find('#snippetSelect');
+      select.on('change', function () {
+         if (select.val() != "*pickasnippet*") {
+          dialog.find("#snippetId").val($(this).val());
+         }
+      })
+      
+     dialog.find("#snippetId").select();
+      ProjectManager.getAllFiles().then(function (fileArray) {
+        // those are just files in project. rename
+        loadedFiles = fileArray;
+        var a = fileArray.filter(function (file) {
+          return /__snippet-/.test(getRelativeFileName(file.fullPath));
+        });
+        a.forEach(function (el) {
+          var tmp = getRelativeFileName(el.fullPath).replace(/__snippet-/,"").replace(/.json/,"");
+          select.append(`<option value="${tmp}"> ${tmp}</option>`); 
+        });
+      });
+
       
       d.done(function(buttonId){
         if(buttonId === 'done') {
@@ -694,6 +765,10 @@ define(function (require, exports, module) {
   };
   
   var loadMarker = function () {
+  };
+  
+  var updateSnippet = function () {
+    
   };
 
   ProjectManager.on("projectClose", clearMarkers);
