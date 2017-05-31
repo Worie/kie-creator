@@ -637,7 +637,8 @@ define(function (require, exports, module) {
   };
   
   function init () {
-  
+    var mergerDomain = new NodeDomain("myMerger", ExtensionUtils.getModulePath(module, "node/mergeDomain"));
+    
     // The extensions space, panel at the bottom of editor.
     var $bottomPanelTemplate = $(
       Mustache.render(require("text!html/bottom_panel.html"), 
@@ -654,6 +655,18 @@ define(function (require, exports, module) {
         $exportBtn = $bottomPanel.find('#export'),
         $importBtn = $bottomPanel.find('#import'),
         $closeBtn = $bottomPanel.find('.close');
+    var $mergeBtn = $bottomPanel.find('#merge');
+    
+    $mergeBtn.on('click', function () {
+      console.log(mergerDomain);
+      mergerDomain.exec("merge", ProjectManager.getProjectRoot().fullPath)
+        .then(function (foo) {
+          console.log(foo);
+        })
+        .fail(function (err) {
+          console.log(err);
+      });
+    });
     
     var toolbarButton = require('text!html/toolbar_button.html');
     $('#main-toolbar .buttons').append(toolbarButton);

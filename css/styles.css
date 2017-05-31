@@ -181,3 +181,9 @@
   background: url('./../img/icon.svg') no-repeat center center transparent;
   background-size: 90%;
 }
+
+#merge {
+  position: absolute;
+  top: 5px;
+  right: 30px;
+}
