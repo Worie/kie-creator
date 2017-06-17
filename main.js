@@ -228,22 +228,27 @@ define(function (require, exports, module) {
     $tableContainer.animate({ scrollTop: $tableContainer.find('.marker-list').height()}, 300);
   };
   
-  function markSelection() {
-    var obj = {};
+  function markSelection(config) {
     var fullPath = EditorManager
                     .getCurrentFullEditor()
                     .getFile()
                     .fullPath,
         currentEditor = EditorManager.getCurrentFullEditor(),
         cm = currentEditor._codeMirror;
-        
+    
     if (!cm.somethingSelected()) { 
       return false;
     }
+
+    var obj = config || {
+      className: ""
+    };
     
-    obj.className = {};
     obj.addToHistory = true;
     obj.className += ' marked';
+    obj.inclusiveLeft = true;
+    obj.inclusiveRight = true;
+    
     
     cm
       .listSelections()
@@ -732,6 +737,21 @@ define(function (require, exports, module) {
     CommandManager.register("snippetsExport", "snippetsExport", onExportClicked);
     CommandManager.register("snippetsImport", "snippetsImport", importSnapshot);
     CommandManager.register("snippetsMerge", "snippetsMerge", onMergeClicked);
+    CommandManager.register("snippetsMarkHidden", "snippetsMarkHidden",  function () {
+      showBottomPanel();
+      markSelection({
+        hidden: true,
+        readOnly: true,
+        className: "hidden"
+      });
+    });
+    CommandManager.register("snippetsMarkLocked", "snippetsMarkLocked",  function () {
+      showBottomPanel();
+      markSelection({
+        readOnly: true,
+        className: "locked"
+      });
+    });
     CommandManager.register("snippetsMark", "snippetsMark", function () {
       showBottomPanel();
       markSelection();
@@ -772,6 +792,8 @@ define(function (require, exports, module) {
     KeyBindingManager.addBinding("snippetsImport", "Shift-Cmd-I");
     KeyBindingManager.addBinding("snippetsMerge", "Shift-Cmd-M");
     KeyBindingManager.addBinding("snippetsMark", "Shift-Cmd-N");
+    KeyBindingManager.addBinding("snippetsMarkHidden", "Shift-Alt-Cmd-1");
+    KeyBindingManager.addBinding("snippetsMarkLocked", "Shift-Alt-Cmd-2");
   };
   
   
