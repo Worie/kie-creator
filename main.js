@@ -207,7 +207,6 @@ define(function (require, exports, module) {
       allMarkers.add(marker);
     }
     
-    
     $btnWrapper
       .append($delBtn)
       .append($hideBtn)
@@ -229,40 +228,42 @@ define(function (require, exports, module) {
     $tableContainer.animate({ scrollTop: $tableContainer.find('.marker-list').height()}, 300);
   };
   
-  function markSelection(obj) {
+  function markSelection() {
+    var obj = {};
     var fullPath = EditorManager
                     .getCurrentFullEditor()
                     .getFile()
                     .fullPath,
-        startIndex,
-        endIndex,
         currentEditor = EditorManager.getCurrentFullEditor(),
-        cm = currentEditor._codeMirror,
-        selectedText = cm.getSelection();
-    
-    if (selectedText === '') { 
+        cm = currentEditor._codeMirror;
+        
+    if (!cm.somethingSelected()) { 
       return false;
     }
     
-    if (!obj.className) {
-      obj.className = {};
-    }
+    obj.className = {};
     obj.addToHistory = true;
     obj.className += ' marked';
     
-    startIndex = cm.indexFromPos(cm.getCursor('from'));
-    endIndex = selectedText.length + startIndex;
-    
-    // Get Pos Object from string index ({line, ch})
-    var from = cm.posFromIndex(startIndex),
-        to = cm.posFromIndex(endIndex);
-    
-    createLiElement(
-      cm.markText(from, to, obj),
-      obj,
-      fullPath,
-      cm
-    );
+    cm
+      .listSelections()
+      .forEach(function (range) {
+        var from, to;
+        if (cm.indexFromPos(range.anchor) > cm.indexFromPos(range.head)) {
+          from = range.head;
+          to = range.anchor;
+        } else { 
+          from = range.anchor;
+          to = range.head;
+        }
+      
+        createLiElement(
+          cm.markText(from, to, obj),
+          obj,
+          fullPath,
+          cm
+        );
+      });
   };
   
   function parseMarkerToObj (marker) {
@@ -731,6 +732,10 @@ define(function (require, exports, module) {
     CommandManager.register("snippetsExport", "snippetsExport", onExportClicked);
     CommandManager.register("snippetsImport", "snippetsImport", importSnapshot);
     CommandManager.register("snippetsMerge", "snippetsMerge", onMergeClicked);
+    CommandManager.register("snippetsMark", "snippetsMark", function () {
+      showBottomPanel();
+      markSelection();
+    });
     // When brackets is launching there are no activeEditors.
     var currentFulLEditor = false;
     
@@ -766,6 +771,7 @@ define(function (require, exports, module) {
     KeyBindingManager.addBinding("snippetsExport", "Shift-Cmd-E");
     KeyBindingManager.addBinding("snippetsImport", "Shift-Cmd-I");
     KeyBindingManager.addBinding("snippetsMerge", "Shift-Cmd-M");
+    KeyBindingManager.addBinding("snippetsMark", "Shift-Cmd-N");
   };
   
   
