@@ -657,16 +657,7 @@ define(function (require, exports, module) {
         $closeBtn = $bottomPanel.find('.close');
     var $mergeBtn = $bottomPanel.find('#merge');
     
-    $mergeBtn.on('click', function () {
-      console.log(mergerDomain);
-      mergerDomain.exec("merge", ProjectManager.getProjectRoot().fullPath)
-        .then(function (foo) {
-          console.log(foo);
-        })
-        .fail(function (err) {
-          console.log(err);
-      });
-    });
+    $mergeBtn.on('click', onMergeClicked);
     
     var toolbarButton = require('text!html/toolbar_button.html');
     $('#main-toolbar .buttons').append(toolbarButton);
@@ -727,12 +718,19 @@ define(function (require, exports, module) {
       Resizer.hide($bottomPanel);
     };
     
+    var onMergeClicked = function () {
+      mergerDomain.exec("merge", ProjectManager.getProjectRoot().fullPath);
+    };
+    
     $exportBtn.on('click', onExportClicked);
     $importBtn.on('click', importSnapshot);
     $createBtn.on('click', markSelection);
     $closeBtn.on('click', closeBottomPanel);
     $createBtn.hide();
     
+    CommandManager.register("snippetsExport", "snippetsExport", onExportClicked);
+    CommandManager.register("snippetsImport", "snippetsImport", importSnapshot);
+    CommandManager.register("snippetsMerge", "snippetsMerge", onMergeClicked);
     // When brackets is launching there are no activeEditors.
     var currentFulLEditor = false;
     
@@ -764,6 +762,10 @@ define(function (require, exports, module) {
     });
 
     $createBtn.hide();
+    
+    KeyBindingManager.addBinding("snippetsExport", "Shift-Cmd-E");
+    KeyBindingManager.addBinding("snippetsImport", "Shift-Cmd-I");
+    KeyBindingManager.addBinding("snippetsMerge", "Shift-Cmd-M");
   };
   
   
