@@ -243,32 +243,52 @@ define(function (require, exports, module) {
     var obj = config || {
       className: ""
     };
+    
+    var cache = {};
 
+    obj.inclusiveLeft = true;
+    obj.inclusiveRight = true;
+    
     if (obj.onlyVisible) {
-      invertSelection(cm);
+      cache.oldSelections = invertSelection(cm);
       obj.hidden = true;
       obj.readOnly = true;
       obj.className += ' hidden';
+      obj.inclusiveLeft = false;
+      obj.inclusiveRight = false;
     }
     
     obj.addToHistory = true;
     obj.className += ' marked';
-    obj.inclusiveLeft = true;
-    obj.inclusiveRight = true;
     
 
     cm
       .listSelections()
-      .forEach(function (range) {
-        
+      .forEach(function (range, i, arr) {
+        var iterationObj = {};
+        if (obj.onlyVisible) {
+          if (cm.indexFromPos(range.anchor) == 0) {
+            iterationObj.inclusiveLeft = true;
+          }
+          if (cm.indexFromPos(range.head) == cm.getValue().length) {
+            iterationObj.inclusiveRight = true;
+          }
+        }
+        var config = Object.assign({}, obj, iterationObj);
         range = getSortedRange(cm, range);
         createLiElement(
-          cm.markText(range.from, range.to, obj),
-          obj,
+          cm.markText(range.from, range.to, config),
+          config,
           fullPath,
           cm
         );
       });
+    
+    if (obj.onlyVisible) {
+      // hacky workaround. search #CMSELECTIONS
+      // if it wouldnt happen, I could simply invoke invertSelection();
+      cm.setSelections(cache.oldSelections);
+    }
   };
     
   function getSortedRange (cm, range) {
@@ -312,6 +332,12 @@ define(function (require, exports, module) {
       return cm.indexFromPos(el.anchor) != cm.indexFromPos(el.head);
     });
     cm.setSelections(newSelections);
+    
+    // NOTICE: hacky workaround for a bug #CMSELECTIONS
+    // hacky. CM has a bug that makes listSelections() return only last element of the array. Thats why I return the 
+    // uninverted selection so I can use it later, somewhere else...
+    
+    return selections;
   };
   
   function parseMarkerToObj (marker) {
