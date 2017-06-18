@@ -243,32 +243,75 @@ define(function (require, exports, module) {
     var obj = config || {
       className: ""
     };
+
+    if (obj.onlyVisible) {
+      invertSelection(cm);
+      obj.hidden = true;
+      obj.readOnly = true;
+      obj.className += ' hidden';
+    }
     
     obj.addToHistory = true;
     obj.className += ' marked';
     obj.inclusiveLeft = true;
     obj.inclusiveRight = true;
     
-    
+
     cm
       .listSelections()
       .forEach(function (range) {
-        var from, to;
-        if (cm.indexFromPos(range.anchor) > cm.indexFromPos(range.head)) {
-          from = range.head;
-          to = range.anchor;
-        } else { 
-          from = range.anchor;
-          to = range.head;
-        }
-      
+        
+        range = getSortedRange(cm, range);
         createLiElement(
-          cm.markText(from, to, obj),
+          cm.markText(range.from, range.to, obj),
           obj,
           fullPath,
           cm
         );
       });
+  };
+    
+  function getSortedRange (cm, range) {
+    var from, to;
+    if (cm.indexFromPos(range.anchor) > cm.indexFromPos(range.head)) {
+        from = range.head;
+        to = range.anchor;
+    } else { 
+      from = range.anchor;
+      to = range.head;
+    }
+    
+    return {from: from, to: to};
+  }
+  function invertSelection (cm) {
+    var selections = cm.listSelections();
+    var index = 0;
+    var newSelections = [];
+    selections.forEach(function (range) {
+      range = getSortedRange(cm, range);
+      var start = cm.indexFromPos(range.from);
+      var end = cm.indexFromPos(range.to);
+      
+      if (index <= start) {
+        var indexPos = cm.posFromIndex(index);
+        var startPos = range.from;
+        var endPos = range.to;
+        newSelections.push({anchor: indexPos, head: startPos});
+        index = end;
+      }
+    });
+    
+    if (cm.somethingSelected()) {
+      var end = cm.getValue().length;
+      var indexPos = cm.posFromIndex(index);
+      var endPos = cm.posFromIndex(end);
+      newSelections.push({anchor: indexPos, head: endPos});
+    }
+    
+    newSelections = newSelections.filter(function (el) {
+      return cm.indexFromPos(el.anchor) != cm.indexFromPos(el.head);
+    });
+    cm.setSelections(newSelections);
   };
   
   function parseMarkerToObj (marker) {
@@ -737,6 +780,12 @@ define(function (require, exports, module) {
     CommandManager.register("snippetsExport", "snippetsExport", onExportClicked);
     CommandManager.register("snippetsImport", "snippetsImport", importSnapshot);
     CommandManager.register("snippetsMerge", "snippetsMerge", onMergeClicked);
+    CommandManager.register("snippetsMarkVisible", "snippetsMarkVisible",  function () {
+      showBottomPanel();
+      markSelection({
+        onlyVisible: true
+      });
+    });
     CommandManager.register("snippetsMarkHidden", "snippetsMarkHidden",  function () {
       showBottomPanel();
       markSelection({
@@ -794,6 +843,7 @@ define(function (require, exports, module) {
     KeyBindingManager.addBinding("snippetsMark", "Shift-Cmd-N");
     KeyBindingManager.addBinding("snippetsMarkHidden", "Shift-Alt-Cmd-1");
     KeyBindingManager.addBinding("snippetsMarkLocked", "Shift-Alt-Cmd-2");
+    KeyBindingManager.addBinding("snippetsMarkVisible", "Shift-Alt-Cmd-3");
   };
   
   
