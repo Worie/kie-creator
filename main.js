@@ -94,9 +94,13 @@ define(function (require, exports, module) {
     };
     
     $li.attr('data-file-name', getRelativeFileName(fullPath));
-    $li.on("click", function () {
+    $li.on("click", function (ev) {
         FileViewController.openFileAndAddToWorkingSet(fullPath);
-        selectMarker();
+        if (!ev.altKey) {
+          selectMarker();
+        } else {
+          cm.addSelection(range.from, range.to);
+        }
     });
 
     function onDelBtnClick () {
@@ -386,6 +390,10 @@ define(function (require, exports, module) {
                 FileUtils.writeText(doc.file, content);
               });
   }
+  
+  //  an idea for utility function. 
+  //  function getMarkerByRange
+  
 
   function importSnapshot () {
     var $template = $(
