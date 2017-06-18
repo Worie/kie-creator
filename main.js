@@ -57,7 +57,11 @@ define(function (require, exports, module) {
       snippetVersion = 0,
       lastSnippetName = "",
       allMarkers = new Set(),
-      loadedFiles = [];
+      loadedFiles = [],
+      markerFileId = 0,
+      markerRangeId = 0,
+      markerFilesMap = new Map(),
+      markerRangeMap = new Map();
   
   var getRelativeFileName = function (path) {
     var projectPath = ProjectManager.getProjectRoot().fullPath;
@@ -70,7 +74,30 @@ define(function (require, exports, module) {
 //  window.setview = FileViewController.openFileAndAddToWorkingSet;
   function createLiElement (marker, obj, fullPath, cm) {
     // List entry markup.
-    var $li = $("<li></li>"),
+    var range = marker.find() || obj;
+    
+    // those are needed so I can query the li elements that represent markers
+    var rangeId = null;
+    var fileId = null;
+    
+    var stringRange = JSON.stringify(range);
+    
+    if (markerRangeMap.get(stringRange)) {
+      rangeId = markerRangeMap.get(stringRange);
+    } else {
+      markerRangeMap.set(stringRange, markerRangeId);
+      rangeId = markerRangeId;
+      markerRangeId++;
+    }
+
+    if (markerFilesMap.get(fullPath)) {
+      fileId = markerFilesMap.get(fullPath);
+    } else {
+      markerFilesMap.set(fullPath, markerFileId);
+      fileId = markerFileId;
+      markerFileId++;
+    }    
+    var $li = $(`<li data-marker-range="${rangeId}" data-marker-file="${fileId}"></li>`),
         $btnWrapper = $(`<div class="wrapper"></div>`),
         $delBtn = $(`<button class="marker-delete"></button>`),
         $hideBtn = $(`<button class="marker-hide"></button>`),
@@ -79,7 +106,9 @@ define(function (require, exports, module) {
         $rightBtn = $('<button class="inclusive">R</button>'),
         $code = $('<div class="code"></div>');
     
-    var range = marker.find() || obj;
+    marker.filePath = fullPath;
+    
+
     
     function selectMarker () {
       cm.setSelection(range.from, range.to);
@@ -265,7 +294,6 @@ define(function (require, exports, module) {
     obj.addToHistory = true;
     obj.className += ' marked';
     
-
     cm
       .listSelections()
       .forEach(function (range, i, arr) {
@@ -278,10 +306,24 @@ define(function (require, exports, module) {
             iterationObj.inclusiveRight = true;
           }
         }
+        
         var config = Object.assign({}, obj, iterationObj);
         range = getSortedRange(cm, range);
+        var marker = getMarkerByRange(range, fullPath);
+        if (!marker) {
+          marker = cm.markText(range.from, range.to, config);
+          marker.filePath = fullPath;
+          allMarkers.add(marker);
+        } else {
+          
+          // reconsider showing that the marker already exists
+//          $bottomPanel
+//            .find(`.marker-list li[data-marker-range="${markerRangeMap.get(JSON.stringify(range))}"][data-marker-file="${markerFilesMap.get(fullPath)}"]`)[0].scrollIntoView();
+          return;
+        }
+        
         createLiElement(
-          cm.markText(range.from, range.to, config),
+          marker,
           config,
           fullPath,
           cm
@@ -392,7 +434,16 @@ define(function (require, exports, module) {
   }
   
   //  an idea for utility function. 
-  //  function getMarkerByRange
+  function getMarkerByRange (search, filePath) {
+    return Array.from(allMarkers).find(function (marker) {
+      var range = marker.find();
+      return range.from.ch === search.from.ch &&
+        range.from.line === search.from.line &&
+        range.to.ch === search.to.ch &&
+        range.to.line === search.to.line &&
+        marker.filePath === filePath;
+    });
+  };
   
 
   function importSnapshot () {
@@ -485,56 +536,11 @@ define(function (require, exports, module) {
                 });
             });
 
-                  
-//              }).fail(function (err) {
-//                console.log(err);
-//              });
-        
-
     }
   });
   };
   
-  /*
   
-   if (typeof json[file].markers !== 'undefined') {
-                    FileViewController
-                      .openFileAndAddToWorkingSet(projectPath + file)
-                      .then(function () {
-                        DocumentManager
-                      .getDocumentForPath(projectPath + file)
-                      .then(function (doc) {
-                        // so it'll be kept alive
-                        doc.addRef();
-//                          cm = doc._associatedFullEditors[0]._codeMirror;
-                          console.log(doc);
-                          setTimeout(function() {
-                            console.log(doc);
-                          },1000);
-                          var cm = doc._associatedFullEditors[0]._codeMirror;
-                        
-                        if (typeof json[file].markers !== 'undefined') {
-                          console.log(file, json[file].markers);
-                          json[file].markers.forEach(function (marker) {
-
-                            createLiElement(
-                              cm.markText(
-                                marker.from,
-                                marker.to,
-                                marker
-                              ),
-                              marker,
-                              projectPath + file,
-                              cm
-                            );
-                            doc.releaseRef();
-                          });
-                        }
-                    });
-                      
-                    });
-                  }
-                  */
   
   function exportProject (snippetName) {
     
@@ -805,6 +811,11 @@ define(function (require, exports, module) {
       mergerDomain.exec("merge", ProjectManager.getProjectRoot().fullPath);
     };
     
+    var onRemoveClicked = function () {
+      var cm = EditorManager.getCurrentFullEditor()._codeMirror;
+      removeMarkersMatchingSelections(cm);
+    };
+    
     $exportBtn.on('click', onExportClicked);
     $importBtn.on('click', importSnapshot);
     $createBtn.on('click', markSelection);
@@ -814,6 +825,7 @@ define(function (require, exports, module) {
     CommandManager.register("snippetsExport", "snippetsExport", onExportClicked);
     CommandManager.register("snippetsImport", "snippetsImport", importSnapshot);
     CommandManager.register("snippetsMerge", "snippetsMerge", onMergeClicked);
+    CommandManager.register("snippetsMarkRemove", "snippetsMarkRemove", onRemoveClicked);
     CommandManager.register("snippetsMarkVisible", "snippetsMarkVisible",  function () {
       showBottomPanel();
       markSelection({
@@ -875,13 +887,54 @@ define(function (require, exports, module) {
     KeyBindingManager.addBinding("snippetsImport", "Shift-Cmd-I");
     KeyBindingManager.addBinding("snippetsMerge", "Shift-Cmd-M");
     KeyBindingManager.addBinding("snippetsMark", "Shift-Cmd-N");
+    KeyBindingManager.addBinding("snippetsMarkRemove", "Shift-Cmd-Backspace");
     KeyBindingManager.addBinding("snippetsMarkHidden", "Shift-Alt-Cmd-1");
     KeyBindingManager.addBinding("snippetsMarkLocked", "Shift-Alt-Cmd-2");
     KeyBindingManager.addBinding("snippetsMarkVisible", "Shift-Alt-Cmd-3");
   };
   
+  var removeMarkersMatchingSelections = function (cm) {
+    
+    var selections = cm.listSelections(),
+        toBeRemoved = [],
+        filePath = EditorManager
+                    .getCurrentFullEditor()
+                    .getFile()
+                    .fullPath;
+    
+    Array.from(allMarkers).forEach(function (marker) {
+      if (marker.filePath != filePath)
+        return;
+      
+      var range = marker.find();
+      
+      
+      var matchedSelection = selections.find(function (search) {
+        search = getSortedRange(cm, search);
+        return isEqualPos(range.from, search.from) && isEqualPos(range.to, search.to);
+      });
+      
+      if (matchedSelection) {
+        toBeRemoved.push(marker);
+        var sorted = getSortedRange(cm, matchedSelection);
+        var text = cm.getRange(sorted.from, sorted.to);
+        
+        $bottomPanel
+          .find(`.marker-list li[data-marker-range="${markerRangeMap.get(JSON.stringify(sorted))}"][data-marker-file="${markerFilesMap.get(filePath)}"]`)
+          .remove();
+      }
+    });
+    toBeRemoved.forEach(function (marker) {
+      allMarkers.delete(marker);
+      marker.clear();
+    });
+  };
+                                   
+  var isEqualPos = function(a, b) {
+    return a.ch === b.ch && a.line === b.line;
+  };
   
-  var clearMarkers = function () {
+  var removeAllMarkers = function () {
     $bottomPanel
       .find('.marker-list').html('');
     
@@ -898,7 +951,7 @@ define(function (require, exports, module) {
     
   };
 
-  ProjectManager.on("projectClose", clearMarkers);
+  ProjectManager.on("projectClose", removeAllMarkers);
   //ProjectManager.on("beforeProjectClose", handler)
   //ProjectManager.on("beforeProjectClose", handler)
   //ProjectManager.on("projectOpen", handler)
