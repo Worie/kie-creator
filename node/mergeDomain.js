@@ -31,24 +31,20 @@ maxerr: 50, node: true */
     var glob = require('glob-fs')({ gitignore: true });
     var fs = require('fs');
     
-      
     function merge (projectPath) {
       console.log(projectPath);
       var files = glob.readdirSync(projectPath + '__snippet-*.json', {});
       var result = {};
 
-
-      console.log(files);
       files.forEach(function (path) {
         var file = require('/'+path);
         var snippetName = Object.keys(file)[0];
         result[snippetName] = file[snippetName];
       });
       
-//      console.log(result);
-//    
+
       fs.writeFile(projectPath + '__merged.json', JSON.stringify(result));
-//      console.log(projectPath + '__merged.json');
+
     };
     /**
      * 

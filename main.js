@@ -48,13 +48,25 @@ define(function (require, exports, module) {
       WorkspaceManager = brackets.getModule("view/WorkspaceManager"),
       Resizer = brackets.getModule("utils/Resizer"),
       FileViewController = brackets.getModule("project/FileViewController");
-
+  
+  var CommonUtils = require("./utils/CommonUtils"),
+      EditorUtils = require("./utils/EditorUtils"),
+      SnippetUtils = require("./utils/SnippetUtils");
+  
+  
+  // Load Utilities
+  var getRelativeFileName = CommonUtils.getRelativeFileName;
+  var getSortedRange = CommonUtils.getSortedRange;
+  var isEqualPos = CommonUtils.isEqualPos;
+  var isInProject = CommonUtils.isInProject;
+  
+  var invertSelection = EditorUtils.invertSelection;
+  var getMarkerByRange = EditorUtils.getMarkerByRange;
+  var parseMarkerToObj = EditorUtils.parseMarkerToObj;
 
   ExtensionUtils.loadStyleSheet(module, './css/styles.css');
   
   var $bottomPanel,
-      selectionBookmark,
-      snippetVersion = 0,
       lastSnippetName = "",
       allMarkers = new Set(),
       loadedFiles = [],
@@ -63,13 +75,7 @@ define(function (require, exports, module) {
       markerFilesMap = new Map(),
       markerRangeMap = new Map();
   
-  var getRelativeFileName = function (path) {
-    var projectPath = ProjectManager.getProjectRoot().fullPath;
-    return FileUtils.getRelativeFilename(
-      projectPath,
-      path
-    );
-  };
+  
 //  window.getDocument = DocumentManager.getDocumentForPath;
 //  window.setview = FileViewController.openFileAndAddToWorkingSet;
   function createLiElement (marker, obj, fullPath, cm) {
@@ -111,7 +117,14 @@ define(function (require, exports, module) {
 
     
     function selectMarker () {
-      cm.setSelection(range.from, range.to);
+      var range = marker.find();
+      if (!range) {
+        removeBtnsListeners();
+        $li.remove();
+      } else {
+        cm.setSelection(range.from, range.to);
+      }
+      
     };
     
     function removeBtnsListeners() {
@@ -283,7 +296,10 @@ define(function (require, exports, module) {
     obj.inclusiveRight = true;
     
     if (obj.onlyVisible) {
-      cache.oldSelections = invertSelection(cm);
+      var selections = cm.listSelections().map(function (range) {
+        return getSortedRange(cm, range);
+      });
+      cache.oldSelections = invertSelection(cm, selections);
       obj.hidden = true;
       obj.readOnly = true;
       obj.className += ' hidden';
@@ -309,7 +325,7 @@ define(function (require, exports, module) {
         
         var config = Object.assign({}, obj, iterationObj);
         range = getSortedRange(cm, range);
-        var marker = getMarkerByRange(range, fullPath);
+        var marker = getMarkerByRange(allMarkers, range, fullPath);
         if (!marker) {
           marker = cm.markText(range.from, range.to, config);
           marker.filePath = fullPath;
@@ -335,73 +351,6 @@ define(function (require, exports, module) {
       // if it wouldnt happen, I could simply invoke invertSelection();
       cm.setSelections(cache.oldSelections);
     }
-  };
-    
-  function getSortedRange (cm, range) {
-    var from, to;
-    if (cm.indexFromPos(range.anchor) > cm.indexFromPos(range.head)) {
-        from = range.head;
-        to = range.anchor;
-    } else { 
-      from = range.anchor;
-      to = range.head;
-    }
-    
-    return {from: from, to: to};
-  }
-  function invertSelection (cm) {
-    var selections = cm.listSelections();
-    var index = 0;
-    var newSelections = [];
-    selections.forEach(function (range) {
-      range = getSortedRange(cm, range);
-      var start = cm.indexFromPos(range.from);
-      var end = cm.indexFromPos(range.to);
-      
-      if (index <= start) {
-        var indexPos = cm.posFromIndex(index);
-        var startPos = range.from;
-        var endPos = range.to;
-        newSelections.push({anchor: indexPos, head: startPos});
-        index = end;
-      }
-    });
-    
-    if (cm.somethingSelected()) {
-      var end = cm.getValue().length;
-      var indexPos = cm.posFromIndex(index);
-      var endPos = cm.posFromIndex(end);
-      newSelections.push({anchor: indexPos, head: endPos});
-    }
-    
-    newSelections = newSelections.filter(function (el) {
-      return cm.indexFromPos(el.anchor) != cm.indexFromPos(el.head);
-    });
-    cm.setSelections(newSelections);
-    
-    // NOTICE: hacky workaround for a bug #CMSELECTIONS
-    // hacky. CM has a bug that makes listSelections() return only last element of the array. Thats why I return the 
-    // uninverted selection so I can use it later, somewhere else...
-    
-    return selections;
-  };
-  
-  function parseMarkerToObj (marker) {
-    var obj = {},
-        range = marker.find();
-    
-      obj.from = range.from;
-      obj.to = range.to;
-      obj.options = {
-        className: marker.className.replace("[object Object]", ""),
-        readOnly: marker.readOnly,
-        inclusiveLeft: marker.inclusiveLeft,
-        inclusiveRight: marker.inclusiveRight,
-        hidden: marker.hidden,
-        collapsed: marker.collapse
-      };
-    
-    return obj;
   };
   
   // helper function to create new file inside brackets. (root dir)
@@ -433,19 +382,6 @@ define(function (require, exports, module) {
               });
   }
   
-  //  an idea for utility function. 
-  function getMarkerByRange (search, filePath) {
-    return Array.from(allMarkers).find(function (marker) {
-      var range = marker.find();
-      return range.from.ch === search.from.ch &&
-        range.from.line === search.from.line &&
-        range.to.ch === search.to.ch &&
-        range.to.line === search.to.line &&
-        marker.filePath === filePath;
-    });
-  };
-  
-
   function importSnapshot () {
     var $template = $(
       Mustache.render(require("text!html/import_dialog.html"), 
@@ -520,7 +456,7 @@ define(function (require, exports, module) {
                   };
                   
                   
-                  if (isInProject(file.fileName)) {
+                  if (isInProject(loadedFiles, file.fileName)) {
                     updateFile(file.fileName, file.contents);
                     importMarkers(file);
                   } else {
@@ -539,9 +475,7 @@ define(function (require, exports, module) {
     }
   });
   };
-  
-  
-  
+    
   function exportProject (snippetName) {
     
     var filePaths = [];
@@ -707,7 +641,7 @@ define(function (require, exports, module) {
           // check if file is in project
           var exportedFileName = '__snippet-' + snippetName + '.json';
           
-          if (!isInProject(exportedFileName)) {
+          if (!isInProject(loadedFiles, exportedFileName)) {
             createNewFile(
               exportedFileName,
               JSON.stringify(objToSave)
@@ -717,12 +651,6 @@ define(function (require, exports, module) {
           }
         });
       });
-  };
-  
-  var isInProject = function (name) {
-    return loadedFiles.some(function (file) {
-      return file.fullPath === ProjectManager.getProjectRoot().fullPath + name;
-    });
   };
   
   function init () {
@@ -761,7 +689,7 @@ define(function (require, exports, module) {
     var onExportClicked = function () {
       
       if (lastSnippetName == "") {
-        lastSnippetName = "snippet-project-" + snippetVersion;
+        lastSnippetName = "snippet-project-0";
       }
       
       var $template = $(
@@ -893,6 +821,23 @@ define(function (require, exports, module) {
     KeyBindingManager.addBinding("snippetsMarkVisible", "Shift-Alt-Cmd-3");
   };
   
+  var removeAllMarkers = function () {
+    $bottomPanel
+      .find('.marker-list').html('');
+    
+    allMarkers.forEach(function (marker) {
+      marker.clear();                   
+    });
+    allMarkers.clear();
+  };
+  
+  ProjectManager.on("projectClose", removeAllMarkers);
+  //ProjectManager.on("beforeProjectClose", handler)
+  //ProjectManager.on("beforeProjectClose", handler)
+  //ProjectManager.on("projectOpen", handler)
+  
+  init();
+  
   var removeMarkersMatchingSelections = function (cm) {
     
     var selections = cm.listSelections(),
@@ -929,34 +874,9 @@ define(function (require, exports, module) {
       marker.clear();
     });
   };
-                                   
-  var isEqualPos = function(a, b) {
-    return a.ch === b.ch && a.line === b.line;
-  };
   
-  var removeAllMarkers = function () {
-    $bottomPanel
-      .find('.marker-list').html('');
-    
-    allMarkers.forEach(function (marker) {
-      marker.clear();                   
-    });
-    allMarkers.clear();
-  };
-  
-  var loadMarker = function () {
-  };
-  
-  var updateSnippet = function () {
-    
-  };
+//   require("./InlineSnippetWidget/main");
 
-  ProjectManager.on("projectClose", removeAllMarkers);
-  //ProjectManager.on("beforeProjectClose", handler)
-  //ProjectManager.on("beforeProjectClose", handler)
-  //ProjectManager.on("projectOpen", handler)
-  
-  init();
 });
 
 // TODO:
