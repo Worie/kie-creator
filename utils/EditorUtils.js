@@ -90,6 +90,24 @@ define(function (require, exports, module) {
     });
   };
   
+  var parseMarkerToObj = function (marker) {
+    var obj = {},
+        range = marker.find();
+    
+      obj.from = range.from;
+      obj.to = range.to;
+      obj.options = {
+        className: marker.className.replace("[object Object]", ""),
+        readOnly: marker.readOnly,
+        inclusiveLeft: marker.inclusiveLeft,
+        inclusiveRight: marker.inclusiveRight,
+        hidden: marker.hidden,
+        collapsed: marker.collapse
+      };
+    
+    return obj;
+  };
+  
   exports.invertSelection = invertSelection;
   exports.getMarkerByRange = getMarkerByRange;
   exports.parseMarkerToObj = parseMarkerToObj;
