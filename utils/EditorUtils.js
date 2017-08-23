@@ -92,4 +92,5 @@ define(function (require, exports, module) {
   
   exports.invertSelection = invertSelection;
   exports.getMarkerByRange = getMarkerByRange;
+  exports.parseMarkerToObj = parseMarkerToObj;
 });

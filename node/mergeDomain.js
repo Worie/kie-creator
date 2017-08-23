@@ -42,7 +42,6 @@ maxerr: 50, node: true */
         result[snippetName] = file[snippetName];
       });
       
-
       fs.writeFile(projectPath + '__merged.json', JSON.stringify(result));
 
     };

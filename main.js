@@ -674,7 +674,9 @@ define(function (require, exports, module) {
         $closeBtn = $bottomPanel.find('.close');
     var $mergeBtn = $bottomPanel.find('#merge');
     
-    $mergeBtn.on('click', onMergeClicked);
+    $mergeBtn.on('click', function () {
+      mergerDomain.exec("merge", ProjectManager.getProjectRoot().fullPath);
+    });
     
     var toolbarButton = require('text!html/toolbar_button.html');
     $('#main-toolbar .buttons').append(toolbarButton);

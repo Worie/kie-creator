@@ -19,6 +19,7 @@
   background-image: url('https://cdn1.iconfinder.com/data/icons/hawcons/32/698630-icon-114-lock-128.png');
   background-size: contain;
 }
+
 .marked::selection {
   color: red;
 }
@@ -90,11 +91,14 @@
   transform: none;
 }
 
-.marker-list .active {
+.marker-list button.active {
   transform: scale(1);
   opacity: 1;
 }
 
+.marker-list li.active {
+  background: rgb(67, 67, 67);
+}
 
 #snippet-creator-panel .marker-list {
   font-family: monospace;
