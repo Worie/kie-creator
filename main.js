@@ -414,7 +414,7 @@ define(function (require, exports, module) {
     var dialog = d.getElement();
     d.done(function(buttonId){
       if(buttonId === 'done') {
-            clearMarkers();
+            removeAllMarkers();
         var snippetId = dialog.find("#snippetSelect").val(),
             projectPath = ProjectManager.getInitialProjectPath();
         
@@ -767,7 +767,8 @@ define(function (require, exports, module) {
       markSelection({
         hidden: true,
         readOnly: true,
-        className: "hidden"
+        className: "hidden",
+        collapse: true
       });
     });
     CommandManager.register("snippetsMarkLocked", "snippetsMarkLocked",  function () {
